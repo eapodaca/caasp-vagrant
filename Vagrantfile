@@ -11,6 +11,7 @@ Vagrant.configure("2") do |config|
     node.vm.box_url = caasp_box_url
     node.vm.box = "caasp-3.0"
     node.vm.synced_folder ".", "/vagrant", disabled: true
+    node.vm.provision "shell", path: "provision.sh"
     # node.vm.network :private_network,
     #   :libvirt__network_name => 'caasp',
     #   :type => 'dhcp',
@@ -27,6 +28,7 @@ Vagrant.configure("2") do |config|
     node.vm.box_url = caasp_box_url
     node.vm.box = "caasp-3.0"
     node.vm.synced_folder ".", "/vagrant", disabled: true
+    node.vm.provision "shell", path: "provision.sh"
     # node.vm.network :private_network,
     #   :libvirt__network_name => 'caasp',
     #   :type => 'dhcp',
@@ -35,7 +37,7 @@ Vagrant.configure("2") do |config|
     node.vm.provider :libvirt do |domain|
       domain.memory = 4096
       domain.cpus = 4
-      domain.storage :file, :device => :cdrom, :path => "#{file_path}/.caasp/node.iso"
+      domain.storage :file, :device => :cdrom, :path => "#{file_path}/.caasp/master.iso"
       domain.storage_pool_name = "ssd"
     end
   end
@@ -44,6 +46,7 @@ Vagrant.configure("2") do |config|
       node.vm.box_url = caasp_box_url
       node.vm.box = "caasp-3.0"
       node.vm.synced_folder ".", "/vagrant", disabled: true
+      node.vm.provision "shell", path: "provision.sh"
       # node.vm.network :private_network,
       #   :libvirt__network_name => 'caasp',
       #   :type => 'dhcp',
@@ -53,7 +56,7 @@ Vagrant.configure("2") do |config|
         domain.nested = true
         domain.memory = 4096
         domain.cpus = 4
-        domain.storage :file, :device => :cdrom, :path => "#{file_path}/.caasp/node.iso"
+        domain.storage :file, :device => :cdrom, :path => "#{file_path}/.caasp/worker-#{node_number}.iso"
         domain.storage_pool_name = "ssd"
       end
     end

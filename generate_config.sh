@@ -1,7 +1,7 @@
 #!/bin/bash
 rm -rf ./.caasp/
 
-hosts=( admin node)
+hosts=( admin master worker-1 worker-2 worker-3 )
 
 public_key=$(cat ~/.ssh/id_rsa.pub)
 
@@ -17,6 +17,7 @@ do
    cat > ./.caasp/$host/meta-data <<EOF
 instance-id: ${INSANCE_ID}
 local-hostname: caasp-${host}
+hostname: caasp-${host}
 public-keys:
   - ${public_key}
 EOF
@@ -26,6 +27,11 @@ EOF
 disable_root: False
 ssh_deletekeys: False
 ssh_pwauth: True
+zypp_repos:
+  "caasp-pool":
+    baseurl: http://ibs-mirror.prv.suse.net/dist/ibs/SUSE/Products/SUSE-CAASP/3.0/x86_64/product/
+  "caasp-updates":
+    baseurl: http://ibs-mirror.prv.suse.net/dist/ibs/SUSE/Updates/SUSE-CAASP/3.0/x86_64/update/
 users:
   - name: vagrant
     sudo: ALL=(ALL) NOPASSWD:ALL
@@ -44,7 +50,7 @@ EOF
      cat >> ./.caasp/$host/user-data <<EOF
 suse_caasp:
   role: cluster
-  admin_node: caasp-admin
+  admin_node: 192.168.121.197
 EOF
   fi
 
