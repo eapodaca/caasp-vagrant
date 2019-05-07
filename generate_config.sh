@@ -1,9 +1,15 @@
 #!/bin/bash
 rm -rf ./.caasp/
 
-hosts=( admin master worker-1 worker-2 worker-3 )
+hosts=( caasp-admin caasp-master caasp-worker-1 caasp-worker-2 caasp-worker-3 ses deployer )
 
 public_key=$(cat ~/.ssh/id_rsa.pub)
+
+# zypp_repos:
+#   "caasp-pool":
+#     baseurl: http://ibs-mirror.prv.suse.net/dist/ibs/SUSE/Products/SUSE-CAASP/3.0/x86_64/product/
+#   "caasp-updates":
+#     baseurl: http://ibs-mirror.prv.suse.net/dist/ibs/SUSE/Updates/SUSE-CAASP/3.0/x86_64/update/
 
 for index in "${!hosts[@]}"
 do
@@ -16,8 +22,8 @@ do
 
    cat > ./.caasp/$host/meta-data <<EOF
 instance-id: ${INSANCE_ID}
-local-hostname: caasp-${host}
-hostname: caasp-${host}
+local-hostname: ${host}
+hostname: ${host}
 public-keys:
   - ${public_key}
 EOF
@@ -27,11 +33,6 @@ EOF
 disable_root: False
 ssh_deletekeys: False
 ssh_pwauth: True
-zypp_repos:
-  "caasp-pool":
-    baseurl: http://ibs-mirror.prv.suse.net/dist/ibs/SUSE/Products/SUSE-CAASP/3.0/x86_64/product/
-  "caasp-updates":
-    baseurl: http://ibs-mirror.prv.suse.net/dist/ibs/SUSE/Updates/SUSE-CAASP/3.0/x86_64/update/
 users:
   - name: vagrant
     sudo: ALL=(ALL) NOPASSWD:ALL
@@ -40,17 +41,16 @@ users:
       - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ== vagrant insecure public key
 EOF
 
-  if [ "$host" == "admin" ]; then
-
+  if [ "$host" == "caasp-admin" ]; then
      cat >> ./.caasp/$host/user-data <<EOF
 suse_caasp:
   role: admin
 EOF
-  else
+  elif [ "$host" != "ses" ] && [ "$host" != "deployer" ] ; then
      cat >> ./.caasp/$host/user-data <<EOF
 suse_caasp:
   role: cluster
-  admin_node: 192.168.121.197
+  admin_node: 192.168.15.2
 EOF
   fi
 

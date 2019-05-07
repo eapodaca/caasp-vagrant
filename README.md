@@ -21,6 +21,8 @@ See your distributions instrauction for installing vagrant. You may need to cons
 
 ## Start Cluster
 
+**Note:** The current provision scripts assume that there are mirrors for sles, ses and cassp running on the host system.
+
 ```bash
 # vagrant plugin install vagrant-libvirt
 # ./generate_config.sh
