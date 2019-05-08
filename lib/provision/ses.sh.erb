@@ -1,0 +1,9 @@
+#!/bin/bash
+
+zypper ar <%= sles12sp3_product_url %> sles12sp3_pool
+zypper ar <%= sles12sp3_update_url %> sles12sp3_updates
+zypper ar <%= ses_product_url %> ses_pool
+zypper ar <%= ses_update_url %> ses_updates
+transactional-update cleanup dup
+zypper -n in -t pattern ceph_server
+reboot

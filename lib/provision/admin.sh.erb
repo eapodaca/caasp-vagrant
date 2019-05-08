@@ -1,0 +1,6 @@
+#!/bin/bash
+
+zypper ar <%= caasp_product_url %> caasp_pool
+zypper ar <%= caasp_update_url %> caasp_updates
+transactional-update cleanup dup
+reboot

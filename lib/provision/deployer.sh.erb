@@ -1,0 +1,142 @@
+#!/bin/bash
+
+zypper ar <%= sles12sp3_product_url %> sles12sp3_pool
+zypper ar <%= sles12sp3_update_url %> sles12sp3_updates
+zypper ar <%= sles12sp3_sdk_product_url %> sles12sp3_sdk_pool
+zypper ar <%= sles12sp3_sdk_update_url %> sles12sp3_sdk_updates
+zypper refresh
+zypper -n update
+
+zypper -n in git python-devel
+zypper -n in -t pattern Basis-Devel
+
+easy_install pip
+pip install virtualenv
+
+curl -sOL https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+mv jq-linux64 /usr/local/bin/jq
+chmod +x /usr/local/bin/jq
+
+curl -sOL http://download.suse.de/ibs/SUSE:/Factory:/Head/standard/noarch/ipcalc-0.41-6.16.noarch.rpm
+zypper -n in ./ipcalc-0.41-6.16.noarch.rpm
+rm ipcalc-0.41-6.16.noarch.rpm
+
+cat >> /etc/hosts <<EOF
+<%- for host in hosts do -%>
+<%= host[:ip] %> <%= host[:hostname] %>
+<%- end -%>
+EOF
+cd /home/vagrant
+sudo -u vagrant git clone --recursive https://github.com/SUSE-Cloud/socok8s
+
+sudo -u vagrant mkdir -p /home/vagrant/dev-workspace/inventory
+sudo -u vagrant mkdir -p /home/vagrant/dev-workspace/env
+
+sudo -u vagrant cat >> /home/vagrant/dev-workspace/inventory/default-inventory.yml <<EOF
+---
+caasp-admin:
+  hosts:
+<%- for host in hosts do -%>
+  <%- if host[:hostname].include?('admin') -%>
+    <%= host[:hostname] %>:
+  <%- end -%>
+<%- end -%>
+  vars:
+    ansible_user: root
+
+caasp-masters:
+  hosts:
+<%- for host in hosts do -%>
+  <%- if host[:hostname].include?('master') %>
+    <%= host[:hostname] %>:
+  <%- end -%>
+<%- end -%>
+  vars:
+    ansible_user: root
+
+caasp-workers:
+  hosts:
+<%- for host in hosts do -%>
+  <%- if host[:hostname].include?('worker') -%>
+    <%= host[:hostname] %>:
+  <%- end -%>
+<%- end -%>
+  vars:
+    ansible_user: root
+
+soc-deployer:
+  hosts:
+<%- for host in hosts do -%>
+  <%- if host[:hostname].include?('deployer') -%>
+    <%= host[:hostname] %>:
+      ansible_connection: local
+  <%- end -%>
+<%- end -%>
+  vars:
+    ansible_user: root
+
+ses_nodes:
+  hosts:
+<%- for host in hosts do -%>
+  <%- if host[:hostname].include?('ses') -%>
+    <%= host[:hostname] %>:
+  <%- end -%>
+<%- end -%>
+  vars:
+    ansible_user: root
+
+airship-openstack-compute-workers:
+  hosts:
+<%- for host in hosts do -%>
+  <%- if host[:hostname].include?('worker') -%>
+    <%= host[:hostname] %>:
+  <%- end -%>
+<%- end -%>
+  vars:
+    ansible_user: root
+
+airship-openstack-control-workers:
+  hosts:
+<%- for host in hosts do -%>
+  <%- if host[:hostname].include?('worker') -%>
+    <%= host[:hostname] %>:
+  <%- end -%>
+<%- end -%>
+  vars:
+    ansible_user: root
+
+airship-ucp-workers:
+  hosts:
+<%- for host in hosts do -%>
+  <%- if host[:hostname].include?('worker') -%>
+    <%= host[:hostname] %>:
+  <%- end -%>
+<%- end -%>
+  vars:
+    ansible_user: root
+
+airship-kube-system-workers:
+  hosts:
+<%- for host in hosts do -%>
+  <%- if host[:hostname].include?('worker') -%>
+    <%= host[:hostname] %>:
+  <%- end -%>
+<%- end -%>
+  vars:
+    ansible_user: root
+EOF
+
+sudo -u vagrant cat >> /home/vagrant/.bashrc <<EOF
+export SOCOK8S_ENVNAME=dev
+export DEPLOYMENT_MECHANISM='kvm'
+source /home/vagrant/dev-workspace/.ansiblevenv/bin/activate
+EOF
+
+sudo -u vagrant virtualenv /home/vagrant/dev-workspace/.ansiblevenv
+sudo -u vagrant bash - <<EOF
+source /home/vagrant/dev-workspace/.ansiblevenv/bin/activate
+pip install --upgrade pip
+pip install --upgrade -r /home/vagrant/socok8s/script_library/requirements.txt
+EOF
+
+reboot
