@@ -32,6 +32,54 @@ sudo -u vagrant git clone --recursive https://github.com/SUSE-Cloud/socok8s
 sudo -u vagrant mkdir -p /home/vagrant/dev-workspace/inventory
 sudo -u vagrant mkdir -p /home/vagrant/dev-workspace/env
 
+sudo -u vagrant cat >> /home/vagrant/mirrors.patch <<EOF
+diff --git a/vars/deploy-on-openstack.yml b/vars/deploy-on-openstack.yml
+index 9d21b88..59dc7e9 100644
+--- a/vars/deploy-on-openstack.yml
++++ b/vars/deploy-on-openstack.yml
+@@ -16,18 +16,18 @@ deploy_on_openstack_sesnode_userdata: |
+     - [ ephemeral0, null ]
+   {% endraw %}
+ deploy_on_openstack_repos_to_configure:
+-  SLE12SP3-product: http://provo-clouddata.cloud.suse.de/repos/x86_64/SLES12-SP3-Pool/
+-  SLE12SP3-update: http://provo-clouddata.cloud.suse.de/repos/x86_64/SLES12-SP3-Updates/
+-  SLE12SP3SDK-product: http://provo-clouddata.cloud.suse.de/repos/x86_64/SLE12-SP3-SDK-Pool/
+-  SLE12SP3SDK-update: http://provo-clouddata.cloud.suse.de/repos/x86_64/SLE12-SP3-SDK-Updates/
+-  SUSE-CA: http://download.suse.de/ibs/SUSE:/CA/SLE_12_SP3/
+-  OpenStack-Cloud8-product: http://provo-clouddata.cloud.suse.de/repos/x86_64/SUSE-OpenStack-Cloud-8-Pool/
+-  SES5-product: http://provo-clouddata.cloud.suse.de/repos/x86_64/SUSE-Enterprise-Storage-5-Pool/
+-  SES5-update: http://provo-clouddata.cloud.suse.de/repos/x86_64/SUSE-Enterprise-Storage-5-Updates/
+-  SLE12Containers: http://ibs-mirror.prv.suse.net/dist/ibs/SUSE/Updates/SLE-Module-Containers/12/x86_64/update/
+-  Leap15develtools: https://download.opensuse.org/repositories/devel:/tools/openSUSE_Leap_15.0/
+-  CAASP30-update: http://ibs-mirror.prv.suse.net/dist/ibs/SUSE/Updates/SUSE-CAASP/3.0/x86_64/update/
+-  CAASP30-pool: http://ibs-mirror.prv.suse.net/dist/ibs/SUSE/Products/SUSE-CAASP/3.0/x86_64/product/
++  SLE12SP3-product: "<%= clouddata_mirror %>/repos/x86_64/SLES12-SP3-Pool/"
++  SLE12SP3-update: "<%= clouddata_mirror %>/repos/x86_64/SLES12-SP3-Updates/"
++  SLE12SP3SDK-product: "<%= clouddata_mirror %>/repos/x86_64/SLE12-SP3-SDK-Pool/"
++  SLE12SP3SDK-update: "<%= clouddata_mirror %>/repos/x86_64/SLE12-SP3-SDK-Updates/"
++  SUSE-CA: "<%= ibs_mirror %>/dist/ibs/SUSE:/CA/SLE_12_SP3/"
++  OpenStack-Cloud8-product: "<%= clouddata_mirror %>/repos/x86_64/SUSE-OpenStack-Cloud-8-Pool/"
++  SES5-product: "<%= clouddata_mirror %>/repos/x86_64/SUSE-Enterprise-Storage-5-Pool/"
++  SES5-update: "<%= clouddata_mirror %>/repos/x86_64/SUSE-Enterprise-Storage-5-Updates/"
++  SLE12Containers: "<%= ibs_mirror %>/ibs/SUSE/Updates/SLE-Module-Containers/12/x86_64/update/"
++  Leap15develtools: "https://download.opensuse.org/repositories/devel:/tools/openSUSE_Leap_15.0/"
++  CAASP30-update: "<%= ibs_mirror %>/ibs/SUSE/Updates/SUSE-CAASP/3.0/x86_64/update/"
++  CAASP30-pool: "<%= ibs_mirror %>/ibs/SUSE/Products/SUSE-CAASP/3.0/x86_64/product/"
+ deploy_on_openstack_ses_repos_per_imagename:
+   SLES12-SP3:
+     - SLE12SP3-product
+EOF
+
+cd /home/vagrant/socok8s
+
+sudo -u vagrant git apply /home/vagrant/mirrors.patch
+
+cd -
+
+sudo -u vagrant cat >> /home/vagrant/dev-workspace/env/extravars <<EOF
+ses_repo_server: "<%= clouddata_mirror %>"
+EOF
+
 sudo -u vagrant cat >> /home/vagrant/dev-workspace/inventory/default-inventory.yml <<EOF
 ---
 caasp-admin:
@@ -126,17 +174,61 @@ airship-kube-system-workers:
     ansible_user: root
 EOF
 
-sudo -u vagrant cat >> /home/vagrant/.bashrc <<EOF
+sudo -u vagrant mkdir -p /home/vagrant/.ssh/
+
+sudo -u vagrant cat >> /home/vagrant/.ssh/config <<EOF
+<%- for host in hosts do -%>
+<%- if host[:type] != 'deployer' -%>
+Host <%= host[:hostname] %>
+  Hostname <%= host[:ip] %>
+  User root
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  IdentitiesOnly yes
+<%- end -%>
+<%- end -%>
+EOF
+
+sudo -u vagrant cat >> /home/vagrant/.ssh/id_rsa <<EOF
+<%= deployer_private_key %>EOF
+
+sudo -u vagrant cat >> /home/vagrant/.ssh/id_rsa.pub <<EOF
+<%= deployer_public_key %>EOF
+
+sudo -u vagrant cat >> /home/vagrant/.alias <<EOF
 export SOCOK8S_ENVNAME=dev
 export DEPLOYMENT_MECHANISM='kvm'
-source /home/vagrant/dev-workspace/.ansiblevenv/bin/activate
 EOF
 
 sudo -u vagrant virtualenv /home/vagrant/dev-workspace/.ansiblevenv
 sudo -u vagrant bash - <<EOF
 source /home/vagrant/dev-workspace/.ansiblevenv/bin/activate
-pip install --upgrade pip
-pip install --upgrade -r /home/vagrant/socok8s/script_library/requirements.txt
+pip install -r /home/vagrant/socok8s/script_library/requirements.txt
 EOF
+
+sudo -u vagrant cat >> /home/vagrant/copy_kubernetes_config.sh <<EOF
+#!/bin/bash
+mkdir -p /home/vagrant/.kube
+ssh caasp-admin -C 'sudo cat /root/.kube/config' > /home/vagrant/.kube/config 2> /dev/null
+ssh caasp-admin -C 'sudo cat /etc/pki/trust/anchors/SUSE_CaaSP_CA.crt' > /home/vagrant/.kube/SUSE_CaaSP_CA.crt 2> /dev/null
+ssh caasp-admin -C 'sudo cat /etc/pki/kubectl-client-cert.crt' > /home/vagrant/.kube/kubectl-client-cert.crt 2> /dev/null
+ssh caasp-admin -C 'sudo cat /etc/pki/kubectl-client-cert.key' > /home/vagrant/.kube/kubectl-client-cert.key 2> /dev/null
+
+sed -i 's/\/etc\/pki\/trust\/anchors/\/home\/vagrant\/.kube/' /home/vagrant/.kube/config
+sed -i 's/\/etc\/pki/\/home\/vagrant\/.kube/' /home/vagrant/.kube/config
+sed -i 's/api\.infra\.caasp\.local/caasp-master-1/' /home/vagrant/.kube/config
+EOF
+
+chmod +x /home/vagrant/copy_kubernetes_config.sh
+
+curl -sLO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+chmod +x ./kubectl
+mv ./kubectl /usr/local/bin/kubectl
+
+chown -R vagrant:users /home/vagrant
+chmod 400 /home/vagrant/.ssh/id_rsa
+
+systemctl disable SuSEfirewall2_setup.service
 
 reboot

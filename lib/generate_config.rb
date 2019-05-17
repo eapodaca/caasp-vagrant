@@ -4,38 +4,52 @@ require 'pathname'
 require 'securerandom'
 require 'fileutils'
 
-clouddata_base_url = ENV['CLOUDDATA_BASE_URL'] || 'http://provo-clouddata.cloud.suse.de'
-ibs_base_url = ENV['IBS_BASE_URL'] || 'http://ibs-mirror.prv.suse.net'
+$clouddata_mirror = nil
+$ibs_mirror = nil
+$update_repo = nil
+$base_box_repo_url = nil
+$boxes = nil
 
-$update_repo = {
-  caasp_product_url: ENV['CAASP_PRODUCT_URL'] || "#{ibs_base_url}/dist/ibs/SUSE/Products/SUSE-CAASP/3.0/x86_64/product/",
-  caasp_update_url: ENV['CAASP_UPDATE_URL'] || "#{ibs_base_url}/dist/ibs/SUSE/Updates/SUSE-CAASP/3.0/x86_64/update/",
-  sles12sp3_product_url: ENV['SLES12SP3_PRODUCT_URL'] || "#{clouddata_base_url}/repos/x86_64/SLES12-SP3-Pool/",
-  sles12sp3_update_url: ENV['SLES12SP3_UPDATE_URL'] || "#{clouddata_base_url}/repos/x86_64/SLES12-SP3-Updates/",
-  sles12sp3_sdk_product_url: ENV['SLES12SP3_SDK_PRODUCT_URL'] || "#{clouddata_base_url}/repos/x86_64/SLE12-SP3-SDK-Pool/",
-  sles12sp3_sdk_update_url: ENV['SLES12SP3_SDK_UPDATE_URL'] || "#{clouddata_base_url}/repos/x86_64/SLE12-SP3-SDK-Updates/",
-  ses_product_url: ENV['SES_PRODUCT_URL'] || "#{clouddata_base_url}/repos/x86_64/SUSE-Enterprise-Storage-5-Pool/",
-  ses_update_url: ENV['SES_UPDATE_URL'] || "#{clouddata_base_url}/repos/x86_64/SUSE-Enterprise-Storage-5-Updates/"
-}
+def build_globals()
+  $clouddata_mirror = ENV['CLOUDDATA_BASE_URL'] || 'http://provo-clouddata.cloud.suse.de'
+  $ibs_mirror = ENV['IBS_BASE_URL'] || 'http://ibs-mirror.prv.suse.net'
 
-base_box_repo_url = ENV['BOX_BASE_URL'] || "http://192.168.200.13/box/"
-#generate box with tool from vagrant libvirt (https://github.com/vagrant-libvirt/vagrant-libvirt/blob/master/tools/create_box.sh)
-# qcow file from http://download.suse.de/install/SUSE-CaaSP-3-GM/SUSE-CaaS-Platform-3.0-for-OpenStack-Cloud.x86_64-3.0.0-GM.qcow2
-$boxes = {
-  caasp_box_url: {
-    url: ENV['CAASP_BOX_URL'] || "#{base_box_repo_url}/caasp-3.0.box",
-    name: 'caasp-3.0'
-  },
-  sles_box_url: {
-    url: ENV['SLES_BOX_URL'] || "#{base_box_repo_url}/sles12sp3.box",
-    name: 'sles12sp3'
+  $update_repo = {
+    clouddata_mirror: $clouddata_mirror,
+    ibs_mirror: $ibs_mirror,
+    caasp_product_url: ENV['CAASP_PRODUCT_URL'] || "#{$ibs_mirror}/dist/ibs/SUSE/Products/SUSE-CAASP/3.0/x86_64/product/",
+    caasp_update_url: ENV['CAASP_UPDATE_URL'] || "#{$ibs_mirror}/dist/ibs/SUSE/Updates/SUSE-CAASP/3.0/x86_64/update/",
+    sles12sp3_product_url: ENV['SLES12SP3_PRODUCT_URL'] || "#{$clouddata_mirror}/repos/x86_64/SLES12-SP3-Pool/",
+    sles12sp3_update_url: ENV['SLES12SP3_UPDATE_URL'] || "#{$clouddata_mirror}/repos/x86_64/SLES12-SP3-Updates/",
+    sles12sp3_sdk_product_url: ENV['SLES12SP3_SDK_PRODUCT_URL'] || "#{$clouddata_mirror}/repos/x86_64/SLE12-SP3-SDK-Pool/",
+    sles12sp3_sdk_update_url: ENV['SLES12SP3_SDK_UPDATE_URL'] || "#{$clouddata_mirror}/repos/x86_64/SLE12-SP3-SDK-Updates/",
+    ses_product_url: ENV['SES_PRODUCT_URL'] || "#{$clouddata_mirror}/repos/x86_64/SUSE-Enterprise-Storage-5-Pool/",
+    ses_update_url: ENV['SES_UPDATE_URL'] || "#{$clouddata_mirror}/repos/x86_64/SUSE-Enterprise-Storage-5-Updates/"
   }
-}
 
-def generate_config(vagrant_config, force=false)
+  $base_box_repo_url = ENV['BOX_BASE_URL'] || "http://192.168.200.13/box"
+
+  $boxes = {
+    caasp_box_url: {
+      url: ENV['CAASP_BOX_URL'] || "#{$base_box_repo_url}/caasp-3.0.box",
+      name: 'caasp-3.0'
+    },
+    sles_box_url: {
+      url: ENV['SLES_BOX_URL'] || "#{$base_box_repo_url}/sles12sp3.box",
+      name: 'sles12sp3'
+    }
+  }
+end
+
+$machine_private_key_path = File.expand_path("../.caasp/private_key", File.dirname(__FILE__))
+
+def generate_config(vagrant_config)
+  read_local_env()
+  build_globals()
+  generate_machine_private_key()
   config = {}
   hosts_list = []
-  num_workers = Integer(ENV['CAASP_WORKER_COUNT'] || '3')
+  num_workers = Integer(ENV['CAASP_WORKER_COUNT'] || '2')
   num_masters = Integer(ENV['CAASP_MASTER_COUNT'] || '1')
   hosts = %w{admin}
     .concat((1..num_masters).to_a.map { |n| "master-#{n}" })
@@ -55,18 +69,19 @@ def generate_config(vagrant_config, force=false)
     config[host.to_sym][:type] = "master" if host.include?("master")
     config[host.to_sym][:name] = host
     config[host.to_sym][:admin_host] = config[:admin][:ip] if host.include?("worker") || host.include?("master")
+    hosts_list[-1] = {}.merge(config[host.to_sym])
   end
   config[:deployer][:hosts] = hosts_list
 
-  if force || !Pathname.new(File.expand_path("../.caasp", File.dirname(__FILE__))).directory?
-    generate_config_drives(config)
-  end
+  generate_config_drives(config)
 
   generate_vagrant_config(config, vagrant_config) unless vagrant_config.nil?
 end
 
 def generate_config_drive(name, **config)
-  config[:public_key] = File.read(ENV['SSH_PUBLIC_KEY'] || "#{Dir.home}/.ssh/id_rsa.pub")
+  config[:public_key] = File.read(ENV['SSH_PUBLIC_KEY'] || "#{Dir.home}/.ssh/id_rsa.pub").gsub(/\n/, '')
+  config[:deployer_private_key] = File.read($machine_private_key_path) if name == "deployer"
+  config[:deployer_public_key] = File.read("#{$machine_private_key_path}.pub").gsub(/\n/, '')
   config[:instance_id] = SecureRandom.uuid
   generate_cloud_config(name, 'meta-data', **config)
   generate_cloud_config(name, 'user-data', **config)
@@ -111,6 +126,12 @@ def generate_config_drives(config)
   end
 end
 
+def generate_machine_private_key()
+  return if Pathname.new($machine_private_key_path).file?
+  system("mkdir -p #{File.dirname($machine_private_key_path)}")
+  system("ssh-keygen -t rsa -f #{$machine_private_key_path} -N '""' -C 'vagrant@deployer' >/dev/null 2>&1")
+end
+
 def generate_vagrant_config(config, vagrant_config)
   config.each_key do |key|
     config_host(config[key], vagrant_config)
@@ -121,7 +142,8 @@ $caasp_network = {
   libvirt__network_name: 'caasp',
   libvirt__network_address: '192.168.15.0',
   libvirt__forward_mode: 'none',
-  libvirt__dhcp_enabled: false
+  libvirt__dhcp_enabled: false,
+  autostart: true
 }
 
 def config_host(config, vagrant_config)
@@ -148,6 +170,17 @@ def config_host(config, vagrant_config)
       domain.storage :file, device: :cdrom, path: "#{project_root}/.caasp/#{config[:hostname]}.iso"
       domain.storage :file, size: "#{ENV['SES_ADDTIONAL_DISK_SIZE'] || '40'}G" if config[:type] == "ses"
       domain.storage_pool_name = ENV['LIBVIRT_STORAGE_POOL'] || "default"
+      domain.management_network_autostart = true
     end
+  end
+end
+
+def read_local_env()
+  env_file_path = File.expand_path("../.local.env", File.dirname(__FILE__))
+  env_file = File.read(env_file_path)
+  lines = env_file.split("\n")
+  for line in lines
+    parts = /(?:export\s)?(?<name>\w+)=["']?(?<value>[^"']+)['']?/.match(line)
+    ENV[parts[:name]] = parts[:value]
   end
 end

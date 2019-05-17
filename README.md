@@ -2,7 +2,18 @@
 
 See your distributions instrauction for installing vagrant. You may need to consult some [distribution specific instructions to install the libvirt plugin](https://github.com/vagrant-libvirt/vagrant-libvirt#installation).
 
+On openSUSE a repo needs to be added for vagrant:
+
+```bash
+sudo zypper ar https://download.opensuse.org/repositories/Virtualization:/vagrant/openSUSE_Leap_15.0/ vagrant
+sudo zypper in vagrant vagrant-libvirt
+vagrant plugin install vagrant-libvirt
+```
+
 ## Environment Variables
+
+These can be written in a `.local.env` file and they will automatically be loaded when `vagrant up` is triggered.
+
 |Variable|Default|Description|
 |--------|-------|-----------|
 |SSH_PUBLIC_KEY|`~/.ssh/id_rsa.pub`|The path to your ssh public key|
@@ -69,4 +80,40 @@ See your distributions instrauction for installing vagrant. You may need to cons
 
 ```bash
 # ./generate_config.sh
+```
+
+## Steps after VMs are up
+
+1. Update `/etc/hosts` on host os to point to `cassp-admin` and `caasp-master-1`
+```
+<caasp-admin-eth0-ip>     caasp-admin
+<caasp-master-1-eth0-ip>  caasp-master-1
+```
+2. Go to [http://caasp-admin/](http://caasp-admin/) to complete the bootstrap process.
+3. Download `kubeconfig` from velum ui file, copy to `deployer` node `~/.kube/config`.
+```bash
+vagrant ssh-config > ~/.ssh/v-config
+alias vscp='scp -F ~/.ssh/v-config'
+alias vssh='ssh -F ~/.ssh/v-config'
+vscp -F ~/.ssh/vconfig ~/Downloads/kubeconfig deployer:~/.kube/config
+```
+4. Verify that kubectl command can talk to k8s api on master nodes.
+```bash
+vssh deployer
+kubectl get nodes
+```
+7. Run SES setup step from socok8s repo on the `deployer` nodes. This step may have to be run multiple times.
+```bash
+cd ~/socok8s/
+./run.sh deploy_ses
+```
+8. Run openstack deployment
+```bash
+./run.sh setup_caasp_workers_for_openstack
+./run.sh deploy_airship
+```
+Or without airship, with `OpenStack-Helm`:
+```bash
+./run.sh setup_caasp_workers_for_openstack
+./run.sh deploy_osh
 ```
