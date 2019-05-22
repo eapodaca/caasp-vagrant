@@ -10,6 +10,18 @@ sudo zypper in vagrant vagrant-libvirt
 vagrant plugin install vagrant-libvirt
 ```
 
+Edit the `/etc/libvirt/libvirtd.conf` file to allow admin users access to libvirt unix socket. Be sure to add yourself to the group you choose.
+
+```
+unix_sock_group = "wheel"
+unix_sock_ro_perms = "0770"
+unix_sock_rw_perms = "0770"
+unix_sock_admin_perms = "0770"
+
+auth_unix_ro = "none"
+auth_unix_rw = "none"
+```
+
 ## Environment Variables
 
 These can be written in a `.local.env` file and they will automatically be loaded when `vagrant up` is triggered.
