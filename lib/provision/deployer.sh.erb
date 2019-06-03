@@ -1,25 +1,32 @@
 #!/bin/bash
 
-zypper ar <%= sles12sp3_product_url %> sles12sp3_pool
-zypper ar <%= sles12sp3_update_url %> sles12sp3_updates
-zypper ar <%= sles12sp3_sdk_product_url %> sles12sp3_sdk_pool
-zypper ar <%= sles12sp3_sdk_update_url %> sles12sp3_sdk_updates
+# remove all the repos!
+zypper lr | awk '{ print $3 }' | xargs zypper rr
+
+zypper ar <%= opensuse_oss_url %> opensuse_oss
+zypper ar <%= opensuse_nonoss_url %> opensuse_nonoss
+zypper ar <%= opensuse_updates_oss_url %> opensuse_updates_oss
+zypper ar <%= opensuse_updates_nonoss_url %> opensuse_updates_nonoss
 zypper refresh
 zypper -n update
 
-zypper -n in git python-devel
-zypper -n in -t pattern Basis-Devel
+cat >> /etc/resolv.conf <<EOF
+nameserver 192.168.121.1
+EOF
 
-easy_install pip
+zypper -n in git python-devel which jq ipcalc python3-pip python-xml docker
+zypper -n in -t pattern devel_basis
+
+# the socok8s playbooks will do this, but it will cause a failure becuase the vagrant user
+# will still not have permission to talk to the docker daemon. this way we will
+gpasswd -a vagrant docker
+systemctl enable --now docker
+
+# helm will later need access to our kubeconfig
+ln -s /home/vagrant/.kube /root/.kube
+
+# virtualenv from the opensuse repos are broken :'(
 pip install virtualenv
-
-curl -sOL https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
-mv jq-linux64 /usr/local/bin/jq
-chmod +x /usr/local/bin/jq
-
-curl -sOL http://download.suse.de/ibs/SUSE:/Factory:/Head/standard/noarch/ipcalc-0.41-6.16.noarch.rpm
-zypper -n in ./ipcalc-0.41-6.16.noarch.rpm
-rm ipcalc-0.41-6.16.noarch.rpm
 
 cat >> /etc/hosts <<EOF
 <%- for host in hosts do -%>
@@ -32,52 +39,31 @@ sudo -u vagrant git clone --recursive https://github.com/SUSE-Cloud/socok8s
 sudo -u vagrant mkdir -p /home/vagrant/dev-workspace/inventory
 sudo -u vagrant mkdir -p /home/vagrant/dev-workspace/env
 
-sudo -u vagrant cat >> /home/vagrant/mirrors.patch <<EOF
-diff --git a/vars/deploy-on-openstack.yml b/vars/deploy-on-openstack.yml
-index 9d21b88..59dc7e9 100644
---- a/vars/deploy-on-openstack.yml
-+++ b/vars/deploy-on-openstack.yml
-@@ -16,18 +16,18 @@ deploy_on_openstack_sesnode_userdata: |
-     - [ ephemeral0, null ]
-   {% endraw %}
- deploy_on_openstack_repos_to_configure:
--  SLE12SP3-product: http://provo-clouddata.cloud.suse.de/repos/x86_64/SLES12-SP3-Pool/
--  SLE12SP3-update: http://provo-clouddata.cloud.suse.de/repos/x86_64/SLES12-SP3-Updates/
--  SLE12SP3SDK-product: http://provo-clouddata.cloud.suse.de/repos/x86_64/SLE12-SP3-SDK-Pool/
--  SLE12SP3SDK-update: http://provo-clouddata.cloud.suse.de/repos/x86_64/SLE12-SP3-SDK-Updates/
--  SUSE-CA: http://download.suse.de/ibs/SUSE:/CA/SLE_12_SP3/
--  OpenStack-Cloud8-product: http://provo-clouddata.cloud.suse.de/repos/x86_64/SUSE-OpenStack-Cloud-8-Pool/
--  SES5-product: http://provo-clouddata.cloud.suse.de/repos/x86_64/SUSE-Enterprise-Storage-5-Pool/
--  SES5-update: http://provo-clouddata.cloud.suse.de/repos/x86_64/SUSE-Enterprise-Storage-5-Updates/
--  SLE12Containers: http://ibs-mirror.prv.suse.net/dist/ibs/SUSE/Updates/SLE-Module-Containers/12/x86_64/update/
--  Leap15develtools: https://download.opensuse.org/repositories/devel:/tools/openSUSE_Leap_15.0/
--  CAASP30-update: http://ibs-mirror.prv.suse.net/dist/ibs/SUSE/Updates/SUSE-CAASP/3.0/x86_64/update/
--  CAASP30-pool: http://ibs-mirror.prv.suse.net/dist/ibs/SUSE/Products/SUSE-CAASP/3.0/x86_64/product/
-+  SLE12SP3-product: "<%= clouddata_mirror %>/repos/x86_64/SLES12-SP3-Pool/"
-+  SLE12SP3-update: "<%= clouddata_mirror %>/repos/x86_64/SLES12-SP3-Updates/"
-+  SLE12SP3SDK-product: "<%= clouddata_mirror %>/repos/x86_64/SLE12-SP3-SDK-Pool/"
-+  SLE12SP3SDK-update: "<%= clouddata_mirror %>/repos/x86_64/SLE12-SP3-SDK-Updates/"
-+  SUSE-CA: "<%= ibs_mirror %>/dist/ibs/SUSE:/CA/SLE_12_SP3/"
-+  OpenStack-Cloud8-product: "<%= clouddata_mirror %>/repos/x86_64/SUSE-OpenStack-Cloud-8-Pool/"
-+  SES5-product: "<%= clouddata_mirror %>/repos/x86_64/SUSE-Enterprise-Storage-5-Pool/"
-+  SES5-update: "<%= clouddata_mirror %>/repos/x86_64/SUSE-Enterprise-Storage-5-Updates/"
-+  SLE12Containers: "<%= ibs_mirror %>/ibs/SUSE/Updates/SLE-Module-Containers/12/x86_64/update/"
-+  Leap15develtools: "https://download.opensuse.org/repositories/devel:/tools/openSUSE_Leap_15.0/"
-+  CAASP30-update: "<%= ibs_mirror %>/ibs/SUSE/Updates/SUSE-CAASP/3.0/x86_64/update/"
-+  CAASP30-pool: "<%= ibs_mirror %>/ibs/SUSE/Products/SUSE-CAASP/3.0/x86_64/product/"
- deploy_on_openstack_ses_repos_per_imagename:
-   SLES12-SP3:
-     - SLE12SP3-product
+sudo -u vagrant cat >> /home/vagrant/.bashrc <<EOF
+export SOCOK8S_USE_VIRTUALENV=True
+export SOCOK8S_ENVNAME=dev
 EOF
 
-cd /home/vagrant/socok8s
-
-sudo -u vagrant git apply /home/vagrant/mirrors.patch
-
-cd -
+sudo -u vagrant cat >> /home/vagrant/.bash_profile <<EOF
+export SOCOK8S_USE_VIRTUALENV=True
+export SOCOK8S_ENVNAME=dev
+EOF
 
 sudo -u vagrant cat >> /home/vagrant/dev-workspace/env/extravars <<EOF
 ses_repo_server: "<%= clouddata_mirror %>"
+deploy_on_openstack_repos_to_configure:
+  SLE12SP3-product: "<%= clouddata_mirror %>/repos/x86_64/SLES12-SP3-Pool/"
+  SLE12SP3-update: "<%= clouddata_mirror %>/repos/x86_64/SLES12-SP3-Updates/"
+  SLE12SP3SDK-product: "<%= clouddata_mirror %>/repos/x86_64/SLE12-SP3-SDK-Pool/"
+  SLE12SP3SDK-update: "<%= clouddata_mirror %>/repos/x86_64/SLE12-SP3-SDK-Updates/"
+  SUSE-CA: "<%= ibs_mirror %>/dist/ibs/SUSE:/CA/SLE_12_SP3/"
+  OpenStack-Cloud8-product: "<%= clouddata_mirror %>/repos/x86_64/SUSE-OpenStack-Cloud-8-Pool/"
+  SES5-product: "<%= clouddata_mirror %>/repos/x86_64/SUSE-Enterprise-Storage-5-Pool/"
+  SES5-update: "<%= clouddata_mirror %>/repos/x86_64/SUSE-Enterprise-Storage-5-Updates/"
+  SLE12Containers: "<%= ibs_mirror %>/ibs/SUSE/Updates/SLE-Module-Containers/12/x86_64/update/"
+  Leap15develtools: "https://download.opensuse.org/repositories/devel:/tools/openSUSE_Leap_15.0/"
+  CAASP30-update: "<%= ibs_mirror %>/ibs/SUSE/Updates/SUSE-CAASP/3.0/x86_64/update/"
+  CAASP30-pool: "<%= ibs_mirror %>/ibs/SUSE/Products/SUSE-CAASP/3.0/x86_64/product/"
 EOF
 
 sudo -u vagrant cat >> /home/vagrant/dev-workspace/inventory/default-inventory.yml <<EOF
@@ -229,6 +215,6 @@ mv ./kubectl /usr/local/bin/kubectl
 chown -R vagrant:users /home/vagrant
 chmod 400 /home/vagrant/.ssh/id_rsa
 
-systemctl disable SuSEfirewall2_setup.service
+systemctl disable firewalld.service
 
 reboot

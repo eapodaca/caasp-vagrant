@@ -1,5 +1,15 @@
 # CaaSP-Vagrant
 
+## What is this?
+
+Some ruby code and shell scripts to quickly setup a CaaSP cluster (k8s) using vagrant and libvirt. Under the covers this uses cloudinit config files to create vagrant users and configure CaaSP node roles.
+
+## Why?
+
+Because it was really teadious and time intensive to set these up over and over manually.
+
+# Setup
+
 See your distributions instrauction for installing vagrant. You may need to consult some [distribution specific instructions to install the libvirt plugin](https://github.com/vagrant-libvirt/vagrant-libvirt#installation).
 
 On openSUSE a repo needs to be added for vagrant:
@@ -53,6 +63,7 @@ These can be written in a `.local.env` file and they will automatically be loade
 |DEPLOYER_DISK_SIZE|`40`|The integer count in GB of disk size for deployer node|
 |CLOUDDATA_BASE_URL|`http://provo-clouddata.cloud.suse.de`||
 |IBS_BASE_URL|`http://ibs-mirror.prv.suse.net`||
+|OPENSUSE_MIRROR|`http://download.opensuse.org/`||
 |CAASP_PRODUCT_URL|`http://${IBS_BASE_URL}/dist/ibs/SUSE/Products/SUSE-CAASP/3.0/x86_64/product/`||
 |CAASP_UPDATE_URL|`http://${IBS_BASE_URL}/dist/ibs/SUSE/Updates/SUSE-CAASP/3.0/x86_64/update/`||
 |SLES12SP3_PRODUCT_URL|`${CLOUDDATA_BASE_URL}/repos/x86_64/SLES12-SP3-Pool/`||
@@ -61,6 +72,10 @@ These can be written in a `.local.env` file and they will automatically be loade
 |SLES12SP3_SDK_UPDATE_URL|`${CLOUDDATA_BASE_URL}/repos/x86_64/SLE12-SP3-SDK-Updates/`||
 |SES_PRODUCT_URL|`${CLOUDDATA_BASE_URL}/repos/x86_64/SUSE-Enterprise-Storage-5-Pool/`||
 |SES_UPDATE_URL|`${CLOUDDATA_BASE_URL}/repos/x86_64/SUSE-Enterprise-Storage-5-Updates/`||
+|OPENSUSE_OSS_URL|`${OPENSUSE_MIRROR}/distribution/leap/15.0/repo/oss/"`||
+|OPENSUSE_NONOSS_URL|`${OPENSUSE_MIRROR}/distribution/leap/15.0/repo/non-oss/"`||
+|OPENSUSE_UPDATES_OSS_URL|`${OPENSUSE_MIRROR}/update/leap/15.0/oss/"`||
+|OPENSUSE_UPDATES_NONOSS_URL|`${OPENSUSE_MIRROR}/update/leap/15.0/non-oss/`||
 
 
 ## Generating the box file
@@ -102,12 +117,12 @@ These can be written in a `.local.env` file and they will automatically be loade
 <caasp-master-1-eth0-ip>  caasp-master-1
 ```
 2. Go to [http://caasp-admin/](http://caasp-admin/) to complete the bootstrap process.
-3. Download `kubeconfig` from velum ui file, copy to `deployer` node `~/.kube/config`.
+3. Copy kubeconfig
 ```bash
 vagrant ssh-config > ~/.ssh/v-config
-alias vscp='scp -F ~/.ssh/v-config'
 alias vssh='ssh -F ~/.ssh/v-config'
-vscp -F ~/.ssh/vconfig ~/Downloads/kubeconfig deployer:~/.kube/config
+vssh deployer
+> ./copy_kubernetes_config.sh
 ```
 4. Verify that kubectl command can talk to k8s api on master nodes.
 ```bash
@@ -122,7 +137,7 @@ cd ~/socok8s/
 8. Run openstack deployment
 ```bash
 ./run.sh setup_caasp_workers_for_openstack
-./run.sh deploy_airship
+./run.sh deploy
 ```
 Or without airship, with `OpenStack-Helm`:
 ```bash

@@ -13,6 +13,7 @@ $boxes = nil
 def build_globals()
   $clouddata_mirror = ENV['CLOUDDATA_BASE_URL'] || 'http://provo-clouddata.cloud.suse.de'
   $ibs_mirror = ENV['IBS_BASE_URL'] || 'http://ibs-mirror.prv.suse.net'
+  $opensuse_mirror = ENV['OPENSUSE_MIRROR'] || 'http://download.opensuse.org'
 
   $update_repo = {
     clouddata_mirror: $clouddata_mirror,
@@ -24,7 +25,11 @@ def build_globals()
     sles12sp3_sdk_product_url: ENV['SLES12SP3_SDK_PRODUCT_URL'] || "#{$clouddata_mirror}/repos/x86_64/SLE12-SP3-SDK-Pool/",
     sles12sp3_sdk_update_url: ENV['SLES12SP3_SDK_UPDATE_URL'] || "#{$clouddata_mirror}/repos/x86_64/SLE12-SP3-SDK-Updates/",
     ses_product_url: ENV['SES_PRODUCT_URL'] || "#{$clouddata_mirror}/repos/x86_64/SUSE-Enterprise-Storage-5-Pool/",
-    ses_update_url: ENV['SES_UPDATE_URL'] || "#{$clouddata_mirror}/repos/x86_64/SUSE-Enterprise-Storage-5-Updates/"
+    ses_update_url: ENV['SES_UPDATE_URL'] || "#{$clouddata_mirror}/repos/x86_64/SUSE-Enterprise-Storage-5-Updates/",
+    opensuse_oss_url: ENV['OPENSUSE_OSS_URL'] || "#{$opensuse_mirror}/distribution/leap/15.0/repo/oss/",
+    opensuse_nonoss_url: ENV['OPENSUSE_NONOSS_URL'] || "#{$opensuse_mirror}/distribution/leap/15.0/repo/non-oss/",
+    opensuse_updates_oss_url: ENV['OPENSUSE_UPDATES_OSS_URL'] || "#{$opensuse_mirror}/update/leap/15.0/oss/",
+    opensuse_updates_nonoss_url: ENV['OPENSUSE_UPDATES_NONOSS_URL'] || "#{$opensuse_mirror}/update/leap/15.0/non-oss/"
   }
 
   $base_box_repo_url = ENV['BOX_BASE_URL'] || "http://192.168.200.13/box"
@@ -37,6 +42,10 @@ def build_globals()
     sles_box_url: {
       url: ENV['SLES_BOX_URL'] || "#{$base_box_repo_url}/sles12sp3.box",
       name: 'sles12sp3'
+    },
+    opensuse: {
+      url: ENV['OPENSUSE_BOX_URL'] || "#{$base_box_repo_url}/opensuse-15.0.box",
+      name: 'opensuse15'
     }
   }
 end
@@ -49,7 +58,7 @@ def generate_config(vagrant_config)
   generate_machine_private_key()
   config = {}
   hosts_list = []
-  num_workers = Integer(ENV['CAASP_WORKER_COUNT'] || '2')
+  num_workers = Integer(ENV['CAASP_WORKER_COUNT'] || '3')
   num_masters = Integer(ENV['CAASP_MASTER_COUNT'] || '1')
   hosts = %w{admin}
     .concat((1..num_masters).to_a.map { |n| "master-#{n}" })
@@ -150,6 +159,8 @@ def config_host(config, vagrant_config)
   project_root = File.expand_path("../", File.dirname(__FILE__))
   box = if %w{admin worker master}.include?(config[:type])
     $boxes[:caasp_box_url]
+  elsif config[:type] == 'deployer'
+    $boxes[:opensuse]
   else
     $boxes[:sles_box_url]
   end
