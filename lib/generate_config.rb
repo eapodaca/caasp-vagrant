@@ -188,10 +188,12 @@ end
 
 def read_local_env()
   env_file_path = File.expand_path("../.local.env", File.dirname(__FILE__))
-  env_file = File.read(env_file_path)
-  lines = env_file.split("\n")
-  for line in lines
-    parts = /(?:export\s)?(?<name>\w+)=["']?(?<value>[^"']+)['']?/.match(line)
-    ENV[parts[:name]] = parts[:value]
+  if File.file?(env_file_path)
+    env_file = File.read(env_file_path)
+    lines = env_file.split("\n")
+    for line in lines
+      parts = /(?:export\s)?(?<name>\w+)=["']?(?<value>[^"']+)['']?/.match(line)
+      ENV[parts[:name]] = parts[:value]
+    end
   end
 end
