@@ -96,7 +96,7 @@ def generate_config_drive(name, **config)
   generate_cloud_config(name, 'user-data', **config)
   generate_provision_script(name, **config)
   Dir.chdir(File.expand_path("../.caasp/#{name}/", File.dirname(__FILE__))) do
-    system("genisoimage -o ../#{config[:hostname]}.iso -V cidata -r -J meta-data user-data > /dev/null 2>&1")
+    system("mkisofs -o ../#{config[:hostname]}.iso -V cidata -r -J meta-data user-data > /dev/null 2>&1")
   end
 end
 
