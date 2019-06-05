@@ -17,7 +17,6 @@ On openSUSE a repo needs to be added for vagrant:
 ```bash
 sudo zypper ar https://download.opensuse.org/repositories/Virtualization:/vagrant/openSUSE_Leap_15.0/ vagrant
 sudo zypper in vagrant vagrant-libvirt
-vagrant plugin install vagrant-libvirt
 ```
 
 Edit the `/etc/libvirt/libvirtd.conf` file to allow admin users access to libvirt unix socket. Be sure to add yourself to the group you choose.
@@ -99,8 +98,7 @@ These can be written in a `.local.env` file and they will automatically be loade
 ## Start Cluster
 
 ```bash
-# vagrant plugin install vagrant-libvirt
-# sudo vagrant up
+# vagrant up
 ```
 
 ### If config changes force config regen

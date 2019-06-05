@@ -1,5 +1,9 @@
 #!/bin/bash
 
+cat >> /etc/resolv.conf <<EOF
+nameserver 192.168.121.1
+EOF
+
 # remove all the repos!
 zypper lr | awk '{ print $3 }' | xargs zypper rr
 
@@ -8,11 +12,8 @@ zypper ar <%= opensuse_nonoss_url %> opensuse_nonoss
 zypper ar <%= opensuse_updates_oss_url %> opensuse_updates_oss
 zypper ar <%= opensuse_updates_nonoss_url %> opensuse_updates_nonoss
 zypper refresh
+zypper --gpg-auto-import-keys refresh
 zypper -n update
-
-cat >> /etc/resolv.conf <<EOF
-nameserver 192.168.121.1
-EOF
 
 zypper -n in git python-devel which jq ipcalc python3-pip python-xml docker
 zypper -n in -t pattern devel_basis
@@ -35,6 +36,7 @@ cat >> /etc/hosts <<EOF
 EOF
 cd /home/vagrant
 sudo -u vagrant git clone --recursive https://github.com/SUSE-Cloud/socok8s
+cd -
 
 sudo -u vagrant mkdir -p /home/vagrant/dev-workspace/inventory
 sudo -u vagrant mkdir -p /home/vagrant/dev-workspace/env
@@ -49,8 +51,132 @@ export SOCOK8S_USE_VIRTUALENV=True
 export SOCOK8S_ENVNAME=dev
 EOF
 
+cd /home/vagrant/socok8s
+sudo -u vagrant git apply - <<EOF
+diff --git a/playbooks/roles/airship-deploy-osh/tasks/main.yml b/playbooks/roles/airship-deploy-osh/tasks/main.yml
+index 8314a66..e2f374a 100644
+--- a/playbooks/roles/airship-deploy-osh/tasks/main.yml
++++ b/playbooks/roles/airship-deploy-osh/tasks/main.yml
+@@ -178,7 +178,7 @@
+     OS_PASSWORD: "{{ lookup('password', secrets_location + '/ucp_shipyard_keystone_password ' + password_opts) }}"
+   register: shipyard_desc_action
+   until: shipyard_desc_action.stdout.find('Processing') < 0 and shipyard_desc_action.stdout.find('running') < 0
+-  retries: 240
++  retries: 480
+   delay: 15
+   ignore_errors: yes
+   tags:
+diff --git a/playbooks/roles/airship-deploy-ucp/tasks/main.yml b/playbooks/roles/airship-deploy-ucp/tasks/main.yml
+index 0ec5a78..d442863 100644
+--- a/playbooks/roles/airship-deploy-ucp/tasks/main.yml
++++ b/playbooks/roles/airship-deploy-ucp/tasks/main.yml
+@@ -206,7 +206,7 @@
+   shell: "kubectl get pod {{ armada_pod_name }} -n {{ ucp_namespace_name }} -o jsonpath='{.status.containerStatuses[].ready}'"
+   register: armada_pod_status
+   until: armada_pod_status.stdout == "true"
+-  retries: 30
++  retries: 60
+   delay: 10
+   ignore_errors: yes
+   tags:
+@@ -258,7 +258,7 @@
+   command: 'kubectl get pod -l application=armada,component=api -n {{ ucp_namespace_name }} -o jsonpath="{.items[0].metadata.name}"'
+   register: armada_results
+   until: armada_results.stdout.find('armada-api-') == 0
+-  retries: 180
++  retries: 360
+   delay: 10
+   ignore_errors: yes
+   tags:
+@@ -275,7 +275,7 @@
+   command: "kubectl get pod {{ armada_api_pod_name }} -n {{ ucp_namespace_name }} -o jsonpath='{.status.containerStatuses[].ready}'"
+   register: armada_api_pod_status
+   until: armada_api_pod_status.stdout == "true"
+-  retries: 60
++  retries: 120
+   delay: 10
+   ignore_errors: yes
+   tags:
+diff --git a/playbooks/roles/common-deployer/tasks/helm-install.yml b/playbooks/roles/common-deployer/tasks/helm-install.yml
+index 9c2bc08..77b5f89 100644
+--- a/playbooks/roles/common-deployer/tasks/helm-install.yml
++++ b/playbooks/roles/common-deployer/tasks/helm-install.yml
+@@ -40,12 +40,14 @@
+     - install
+ 
+ - name: Install tiller
++  become: yes
+   command: helm init
+   register: _helminstall
+   when: helm_state == 'to_install'
+   changed_when: True
+ 
+ - name: Upgrade tiller
++  become: yes
+   command: helm init --upgrade
+   register: _helmupgrade
+   when: helm_state == 'to_update' or helm_state == 'to_install'
+diff --git a/playbooks/roles/common-deployer/tasks/helm-run.yml b/playbooks/roles/common-deployer/tasks/helm-run.yml
+index 964a8ad..a59f343 100644
+--- a/playbooks/roles/common-deployer/tasks/helm-run.yml
++++ b/playbooks/roles/common-deployer/tasks/helm-run.yml
+@@ -40,6 +40,7 @@
+     executable: /bin/bash
+ 
+ - name: Adding helm repos
++  become: yes
+   command: helm repo add localhost http://localhost:8879/charts
+   when:
+     - _helmrepolist.rc != 0
+EOF
+cd -
+
+cd /home/vagrant/socok8s/files
+sudo -u vagrant tar xf ./velum-bootstrap.tar.xz
+cd -
+cd /home/vagrant/socok8s/files/velum-bootstrap
+./velum-interactions --setup
+cd -
+
+sudo -u vagrant cat >> /home/vagrant/socok8s/files/velum-bootstrap/environment.json <<EOF
+{
+    "minions": [
+    <%- for host in hosts.filter { |h| %w{admin master worker}.include?(h[:type]) } -%>
+      {
+        "minionId": "<%= host[:hostname] %>",
+        "role": "<%= host[:type] %>"
+      }
+    <%- end -%>
+    ],
+    "kubernetesExternalHost": "caasp-master-1",
+    "dashboardExternalHost": "caasp-admin"
+}
+EOF
+
+sudo -u vagrant cat >> /home/vagrant/post-install.sh <<EOF
+#!/bin/bash
+
+cd /home/vagrant
+
+cd /home/vagrant/socok8s/files/velum-bootstrap
+./velum-interactions -c -b -k --enable-tiller -e ./environment.json
+
+cd /home/vagrant
+./copy_kubernetes_config.sh
+
+cd ./socok8s/
+
+./run.sh deploy_ses
+./run.sh setup_caasp_workers_for_openstack
+./run.sh deploy
+EOF
+chmod +x /home/vagrant/post-install.sh
+
+
 sudo -u vagrant cat >> /home/vagrant/dev-workspace/env/extravars <<EOF
 ses_repo_server: "<%= clouddata_mirror %>"
+socok8s_ext_vip: 192.168.121.2
+socok8s_dcm_vip: 192.168.121.3
 deploy_on_openstack_repos_to_configure:
   SLE12SP3-product: "<%= clouddata_mirror %>/repos/x86_64/SLES12-SP3-Pool/"
   SLE12SP3-update: "<%= clouddata_mirror %>/repos/x86_64/SLES12-SP3-Updates/"
@@ -215,6 +341,4 @@ mv ./kubectl /usr/local/bin/kubectl
 chown -R vagrant:users /home/vagrant
 chmod 400 /home/vagrant/.ssh/id_rsa
 
-systemctl disable firewalld.service
-
-reboot
+systemctl disable -now firewalld.service
