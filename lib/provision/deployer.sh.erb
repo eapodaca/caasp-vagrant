@@ -141,11 +141,13 @@ cd -
 sudo -u vagrant cat >> /home/vagrant/socok8s/files/velum-bootstrap/environment.json <<EOF
 {
     "minions": [
-    <%- for host in hosts.filter { |h| %w{admin master worker}.include?(h[:type]) } -%>
+    <%- for host in hosts -%>
+    <%- if %w{admin master worker}.include?(host[:type]) -%>
       {
         "minionId": "<%= host[:hostname] %>",
         "role": "<%= host[:type] %>"
       }
+    <%- end -%>
     <%- end -%>
     ],
     "kubernetesExternalHost": "caasp-master-1",
