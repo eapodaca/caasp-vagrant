@@ -173,7 +173,20 @@ EOF
 
 sudo -u vagrant cat >> /home/vagrant/post-install.sh <<EOF
 #!/bin/bash
+source ~/.bashrc
 
+/home/vagrant/caasp-bootstrap.sh
+
+cd ./socok8s/
+
+./run.sh deploy_ses
+./run.sh setup_caasp_workers_for_openstack
+./run.sh deploy
+EOF
+chmod +x /home/vagrant/post-install.sh
+
+sudo -u vagrant cat >> /home/vagrant/caasp-bootstrap.sh <<EOF
+#!/bin/bash
 source ~/.bashrc
 
 echo -n "Waiting for caasp admin dashboard (vellum)"
@@ -187,13 +200,8 @@ cd /home/vagrant/socok8s/files/velum-bootstrap
 cd /home/vagrant
 ./copy_kubernetes_config.sh
 
-cd ./socok8s/
-
-./run.sh deploy_ses
-./run.sh setup_caasp_workers_for_openstack
-./run.sh deploy
 EOF
-chmod +x /home/vagrant/post-install.sh
+chmod +x /home/vagrant/caasp-bootstrap.sh
 
 
 sudo -u vagrant cat >> /home/vagrant/dev-workspace/env/extravars <<EOF

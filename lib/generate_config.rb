@@ -166,24 +166,26 @@ def config_host(config, vagrant_config)
   else
     $boxes[:sles]
   end
-  vagrant_config.vm.define config[:hostname] do |node|
-    node.vm.box_url = box[:url]
-    node.vm.box = box[:name]
-    node.vm.synced_folder ".", "/vagrant", disabled: true
-    caasp_network= {}.merge($caasp_network)
-    node.vm.network :private_network,
-      ip: config[:ip],
-      **caasp_network
-    node.vm.provision 'shell', path: "#{project_root}/.caasp/#{config[:hostname]}.sh"
-    node.vm.provider :libvirt do |domain|
-      domain.nested = true if config[:type] == 'worker'
-      domain.memory = Integer(env_var(config[:type], 'memory') || '4096')
-      domain.cpus = Integer(env_var(config[:type], 'cpu_count')  || '2')
-      domain.machine_virtual_size = Integer(env_var(config[:type], 'disk_size')  || '40')
-      domain.storage :file, device: :cdrom, path: "#{project_root}/.caasp/#{config[:hostname]}.iso"
-      domain.storage :file, size: "#{ENV['SES_ADDTIONAL_DISK_SIZE'] || '40'}G" if config[:type] == "ses"
-      domain.storage_pool_name = ENV['LIBVIRT_STORAGE_POOL'] || "default"
-      domain.management_network_autostart = true
+  if(config[:type] != "ses" || ENV.fetch("ENABLE_SES", "True") == "True")
+    vagrant_config.vm.define config[:hostname] do |node|
+      node.vm.box_url = box[:url]
+      node.vm.box = box[:name]
+      node.vm.synced_folder ".", "/vagrant", disabled: true
+      caasp_network= {}.merge($caasp_network)
+      node.vm.network :private_network,
+        ip: config[:ip],
+        **caasp_network
+      node.vm.provision 'shell', path: "#{project_root}/.caasp/#{config[:hostname]}.sh"
+      node.vm.provider :libvirt do |domain|
+        domain.nested = true if config[:type] == 'worker'
+        domain.memory = Integer(env_var(config[:type], 'memory') || '4096')
+        domain.cpus = Integer(env_var(config[:type], 'cpu_count')  || '2')
+        domain.machine_virtual_size = Integer(env_var(config[:type], 'disk_size')  || '40')
+        domain.storage :file, device: :cdrom, path: "#{project_root}/.caasp/#{config[:hostname]}.iso"
+        domain.storage :file, size: "#{ENV['SES_ADDTIONAL_DISK_SIZE'] || '40'}G" if config[:type] == "ses"
+        domain.storage_pool_name = ENV['LIBVIRT_STORAGE_POOL'] || "default"
+        domain.management_network_autostart = true
+      end
     end
   end
 end

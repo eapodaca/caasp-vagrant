@@ -19,7 +19,7 @@ sudo zypper ar https://download.opensuse.org/repositories/Virtualization:/vagran
 sudo zypper in vagrant vagrant-libvirt
 ```
 
-Edit the `/etc/libvirt/libvirtd.conf` file to allow admin users access to libvirt unix socket. Be sure to add yourself to the group you choose.
+Edit the `/etc/libvirt/libvirtd.conf` file to allow admin users access to libvirt unix socket. Be sure to add yourself to the group you choose. This is not nessicary on OpenSUSE.
 
 ```
 unix_sock_group = "wheel"
@@ -29,6 +29,13 @@ unix_sock_admin_perms = "0770"
 
 auth_unix_ro = "none"
 auth_unix_rw = "none"
+```
+
+### On OpenSUSE
+
+```bash
+sudo usermod -a -G libvirt <your_username>
+newgrp libvirt
 ```
 
 ## Environment Variables
@@ -42,6 +49,7 @@ These can be written in a `.local.env` file and they will automatically be loade
 |CAASP_BOX_URL|`${BOX_BASE_URL}/box/caasp-3.0.box`|The url to the caasp vagrant box|
 |SLES_BOX_URL|`${BOX_BASE_URL}/box/sles12sp3.box`|The url to the caasp vagrant box|
 |LIBVIRT_STORAGE_POOL|`default`|The libvirt storage pool where images will be stored|
+|ENABLE_SES|`True`|Can optionally disable ses machine creation|
 |CAASP_WORKER_COUNT|`3`|The interger number if caasp worker nodes that should be deployed|
 |CAASP_MASTER_COUNT|`1`|The interger number if caasp master nodes that should be deployed|
 |ADMIN_CPU_COUNT|`2`|The integer count of CPU cores for caasp admin node|
@@ -97,7 +105,24 @@ vagrant ssh deployer -c /home/vagrant/post-install.sh
 ```
 This will perform the following:
 1. Bootstrap the caasp cluster
-2. retreive kubectl config
+2. retreive kubectl config on deployer
 3. Deploy SES
 4. Label nodes for OpenStack
 5. Deploy openstack via airship
+
+
+### Trigger CaaSP only up
+```bash
+vagrant ssh deployer -c /home/vagrant/caasp-bootstrap.sh
+```
+This will perform the following:
+1. Bootstrap the caasp cluster
+2. retreive kubectl config on deployer
+
+## Convenience Scripts
+The up scripts need a bit of work. They fail because the deployer is still rebooting.
+```bash
+./up.sh # up caasp
+./up_airship.sh # up caasp, ses, airship and openstack
+./down.sh # destroy it all
+```
