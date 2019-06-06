@@ -18,6 +18,7 @@ def build_globals()
   $update_repo = {
     clouddata_mirror: $clouddata_mirror,
     ibs_mirror: $ibs_mirror,
+    opensuse_mirror: $opensuse_mirror,
     caasp_product_url: ENV['CAASP_PRODUCT_URL'] || "#{$ibs_mirror}/dist/ibs/SUSE/Products/SUSE-CAASP/3.0/x86_64/product/",
     caasp_update_url: ENV['CAASP_UPDATE_URL'] || "#{$ibs_mirror}/dist/ibs/SUSE/Updates/SUSE-CAASP/3.0/x86_64/update/",
     sles12sp3_product_url: ENV['SLES12SP3_PRODUCT_URL'] || "#{$clouddata_mirror}/repos/x86_64/SLES12-SP3-Pool/",
@@ -29,17 +30,18 @@ def build_globals()
     opensuse_oss_url: ENV['OPENSUSE_OSS_URL'] || "#{$opensuse_mirror}/distribution/leap/15.0/repo/oss/",
     opensuse_nonoss_url: ENV['OPENSUSE_NONOSS_URL'] || "#{$opensuse_mirror}/distribution/leap/15.0/repo/non-oss/",
     opensuse_updates_oss_url: ENV['OPENSUSE_UPDATES_OSS_URL'] || "#{$opensuse_mirror}/update/leap/15.0/oss/",
-    opensuse_updates_nonoss_url: ENV['OPENSUSE_UPDATES_NONOSS_URL'] || "#{$opensuse_mirror}/update/leap/15.0/non-oss/"
+    opensuse_updates_nonoss_url: ENV['OPENSUSE_UPDATES_NONOSS_URL'] || "#{$opensuse_mirror}/update/leap/15.0/non-oss/",
+    opensuse_devel_tools_url: ENV['OPENSUSE_DEVEL_TOOLS_URL'] || "#{$opensuse_mirror}/repositories/devel:/tools/openSUSE_Leap_15.0/"
   }
 
   $base_box_repo_url = ENV['BOX_BASE_URL'] || "http://192.168.200.13/box"
 
   $boxes = {
-    caasp_box_url: {
+    caasp: {
       url: ENV['CAASP_BOX_URL'] || "#{$base_box_repo_url}/caasp-3.0.box",
       name: 'caasp-3.0'
     },
-    sles_box_url: {
+    sles: {
       url: ENV['SLES_BOX_URL'] || "#{$base_box_repo_url}/sles12sp3.box",
       name: 'sles12sp3'
     },
@@ -158,11 +160,11 @@ $caasp_network = {
 def config_host(config, vagrant_config)
   project_root = File.expand_path("../", File.dirname(__FILE__))
   box = if %w{admin worker master}.include?(config[:type])
-    $boxes[:caasp_box_url]
+    $boxes[:caasp]
   elsif config[:type] == 'deployer'
     $boxes[:opensuse]
   else
-    $boxes[:sles_box_url]
+    $boxes[:sles]
   end
   vagrant_config.vm.define config[:hostname] do |node|
     node.vm.box_url = box[:url]

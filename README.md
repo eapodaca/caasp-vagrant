@@ -75,24 +75,13 @@ These can be written in a `.local.env` file and they will automatically be loade
 |OPENSUSE_NONOSS_URL|`${OPENSUSE_MIRROR}/distribution/leap/15.0/repo/non-oss/"`||
 |OPENSUSE_UPDATES_OSS_URL|`${OPENSUSE_MIRROR}/update/leap/15.0/oss/"`||
 |OPENSUSE_UPDATES_NONOSS_URL|`${OPENSUSE_MIRROR}/update/leap/15.0/non-oss/`||
+|OPENSUSE_DEVEL_TOOLS_URL|`${$OPENSUSE_MIRROR}/repositories/devel:/tools/openSUSE_Leap_15.0/`||
 
 
 ## Generating the box file
-* Download caasp 3.0 openstack [qcow2](http://download.suse.de/install/SUSE-CaaSP-3-GM/SUSE-CaaS-Platform-3.0-for-OpenStack-Cloud.x86_64-3.0.0-GM.qcow2) file.
-* Use [script](https://raw.githubusercontent.com/vagrant-libvirt/vagrant-libvirt/master/tools/create_box.sh) to generate box file.
-
-**Note:** you can skip these step if you are in the Roseville office.
-
+### **Note:** you can skip these step if you are in the Roseville office.
 ```bash
-# curl -LO https://raw.githubusercontent.com/vagrant-libvirt/vagrant-libvirt/master/tools/create_box.sh
-# chmod +x ./create_box.sh
-# curl -LO http://download.suse.de/install/SUSE-CaaSP-3-GM/SUSE-CaaS-Platform-3.0-for-OpenStack-Cloud.x86_64-3.0.0-GM.qcow2
-# ./create_box.sh ./SUSE-CaaS-Platform-3.0-for-OpenStack-Cloud.x86_64-3.0.0-GM.qcow2
-# vagrant box add ./SUSE-CaaS-Platform-3.0-for-OpenStack-Cloud.x86_64-3.0.0-GM.box --name caasp-3.0
-#
-# curl -LO http://download.suse.de/install/SLE-12-SP3-JeOS-GM/SLES12-SP3-JeOS-for-OpenStack-Cloud.x86_64-GM.qcow2
-# ./create_box.sh ./SLES12-SP3-JeOS-for-OpenStack-Cloud.x86_64-GM.qcow2
-# vagrant box add ./SLES12-SP3-JeOS-for-OpenStack-Cloud.x86_64-GM.box --name sles12sp3
+./create_boxes.sh
 ```
 
 ## Start Cluster
@@ -101,44 +90,14 @@ These can be written in a `.local.env` file and they will automatically be loade
 # vagrant up
 ```
 
-### If config changes force config regen
-
-```bash
-# ./generate_config.sh
-```
-
 ## Steps after VMs are up
-
-1. Update `/etc/hosts` on host os to point to `cassp-admin` and `caasp-master-1`
-```
-<caasp-admin-eth0-ip>     caasp-admin
-<caasp-master-1-eth0-ip>  caasp-master-1
-```
-2. Go to [http://caasp-admin/](http://caasp-admin/) to complete the bootstrap process.
-3. Copy kubeconfig
+### Trigger the post up steps:
 ```bash
-vagrant ssh-config > ~/.ssh/v-config
-alias vssh='ssh -F ~/.ssh/v-config'
-vssh deployer
-> ./copy_kubernetes_config.sh
+vagrant ssh deployer -c /home/vagrant/post-install.sh
 ```
-4. Verify that kubectl command can talk to k8s api on master nodes.
-```bash
-vssh deployer
-kubectl get nodes
-```
-7. Run SES setup step from socok8s repo on the `deployer` nodes. This step may have to be run multiple times.
-```bash
-cd ~/socok8s/
-./run.sh deploy_ses
-```
-8. Run openstack deployment
-```bash
-./run.sh setup_caasp_workers_for_openstack
-./run.sh deploy
-```
-Or without airship, with `OpenStack-Helm`:
-```bash
-./run.sh setup_caasp_workers_for_openstack
-./run.sh deploy_osh
-```
+This will perform the following:
+1. Bootstrap the caasp cluster
+2. retreive kubectl config
+3. Deploy SES
+4. Label nodes for OpenStack
+5. Deploy openstack via airship

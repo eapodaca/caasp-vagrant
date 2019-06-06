@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# why do i need to do this?
 cat >> /etc/resolv.conf <<EOF
 nameserver 192.168.121.1
 EOF
@@ -11,11 +12,11 @@ zypper ar <%= opensuse_oss_url %> opensuse_oss
 zypper ar <%= opensuse_nonoss_url %> opensuse_nonoss
 zypper ar <%= opensuse_updates_oss_url %> opensuse_updates_oss
 zypper ar <%= opensuse_updates_nonoss_url %> opensuse_updates_nonoss
-zypper refresh
+zypper ar <%= opensuse_devel_tools_url %> devel_tools
 zypper --gpg-auto-import-keys refresh
 zypper -n update
 
-zypper -n in git python-devel which jq ipcalc python3-pip python-xml docker
+zypper -n in git python-devel which jq ipcalc python3-pip python-xml docker phantomjs ruby2.5 ruby2.5-devel ruby2.5-rubygem-bundler libxml2-devel libxslt-devel
 zypper -n in -t pattern devel_basis
 
 # the socok8s playbooks will do this, but it will cause a failure becuase the vagrant user
@@ -135,18 +136,33 @@ cd /home/vagrant/socok8s/files
 sudo -u vagrant tar xf ./velum-bootstrap.tar.xz
 cd -
 cd /home/vagrant/socok8s/files/velum-bootstrap
-./velum-interactions --setup
+sudo -u vagrant bundle install
+sudo patch -p 1 <<EOF
+diff --git a/velum-interactions b/velum-interactions
+index b98e4b0..af686c9 100755
+--- a/velum-interactions
++++ b/velum-interactions
+@@ -99,7 +99,6 @@ while [[ $# > 0 ]] ; do
+       ;;
+     -b|--bootstrap)
+       RUN_BOOTSTRAP=true
+-      RUN_DOWNLOAD_KUBECONFIG=true
+       HAS_INTERACTION=true
+       HAS_ACTION=true
+       ;;
+EOF
 cd -
 
 sudo -u vagrant cat >> /home/vagrant/socok8s/files/velum-bootstrap/environment.json <<EOF
 {
     "minions": [
-    <%- for host in hosts -%>
+    <%- minions = hosts.select { |h| %w{admin master worker}.include?(h[:type]) } -%>
+    <%- for host in minions -%>
     <%- if %w{admin master worker}.include?(host[:type]) -%>
       {
         "minionId": "<%= host[:hostname] %>",
         "role": "<%= host[:type] %>"
-      }
+      }<%= unless host[:hostname] == minions.last[:hostname] then "," else "" end %>
     <%- end -%>
     <%- end -%>
     ],
@@ -158,10 +174,15 @@ EOF
 sudo -u vagrant cat >> /home/vagrant/post-install.sh <<EOF
 #!/bin/bash
 
+source ~/.bashrc
+
+echo -n "Waiting for caasp admin dashboard (vellum)"
+until curl -sfk https://caasp-admin/ &>/dev/null; do echo -n "."; sleep 1; done
+
 cd /home/vagrant
 
 cd /home/vagrant/socok8s/files/velum-bootstrap
-./velum-interactions -c -b -k --enable-tiller -e ./environment.json
+./velum-interactions -c -b --enable-tiller -e ./environment.json
 
 cd /home/vagrant
 ./copy_kubernetes_config.sh
@@ -180,18 +201,18 @@ ses_repo_server: "<%= clouddata_mirror %>"
 socok8s_ext_vip: 192.168.121.2
 socok8s_dcm_vip: 192.168.121.3
 deploy_on_openstack_repos_to_configure:
-  SLE12SP3-product: "<%= clouddata_mirror %>/repos/x86_64/SLES12-SP3-Pool/"
-  SLE12SP3-update: "<%= clouddata_mirror %>/repos/x86_64/SLES12-SP3-Updates/"
-  SLE12SP3SDK-product: "<%= clouddata_mirror %>/repos/x86_64/SLE12-SP3-SDK-Pool/"
-  SLE12SP3SDK-update: "<%= clouddata_mirror %>/repos/x86_64/SLE12-SP3-SDK-Updates/"
+  SLE12SP3-product: "<%= sles12sp3_product_url %>"
+  SLE12SP3-update: "<%= sles12sp3_update_url %>"
+  SLE12SP3SDK-product: "<%= sles12sp3_sdk_product_url %>"
+  SLE12SP3SDK-update: "<%= sles12sp3_sdk_update_url %>"
   SUSE-CA: "<%= ibs_mirror %>/dist/ibs/SUSE:/CA/SLE_12_SP3/"
   OpenStack-Cloud8-product: "<%= clouddata_mirror %>/repos/x86_64/SUSE-OpenStack-Cloud-8-Pool/"
-  SES5-product: "<%= clouddata_mirror %>/repos/x86_64/SUSE-Enterprise-Storage-5-Pool/"
-  SES5-update: "<%= clouddata_mirror %>/repos/x86_64/SUSE-Enterprise-Storage-5-Updates/"
+  SES5-product: "<%= ses_product_url %>"
+  SES5-update: "<%= ses_update_url %>"
   SLE12Containers: "<%= ibs_mirror %>/ibs/SUSE/Updates/SLE-Module-Containers/12/x86_64/update/"
-  Leap15develtools: "https://download.opensuse.org/repositories/devel:/tools/openSUSE_Leap_15.0/"
-  CAASP30-update: "<%= ibs_mirror %>/ibs/SUSE/Updates/SUSE-CAASP/3.0/x86_64/update/"
-  CAASP30-pool: "<%= ibs_mirror %>/ibs/SUSE/Products/SUSE-CAASP/3.0/x86_64/product/"
+  Leap15develtools: "<%= opensuse_devel_tools_url %>"
+  CAASP30-update: "<%= caasp_update_url %>"
+  CAASP30-pool: "<%= caasp_product_url %>"
 EOF
 
 sudo -u vagrant cat >> /home/vagrant/dev-workspace/inventory/default-inventory.yml <<EOF
@@ -344,3 +365,5 @@ chown -R vagrant:users /home/vagrant
 chmod 400 /home/vagrant/.ssh/id_rsa
 
 systemctl disable --now firewalld.service
+
+reboot
